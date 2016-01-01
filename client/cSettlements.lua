@@ -105,15 +105,3 @@ function Settlements:ModuleUnload()
 end
 
 Settlements = Settlements()
-
-Events:Subscribe("SettlementEnter", function(args)
-
-    Chat:Print(string.format("You have entered %s.", args.name), Color.White)
-
-end)
-
-Events:Subscribe("SettlementExit", function(args)
-
-    Chat:Print(string.format("You have exited %s.", args.name), Color.White)
-
-end)
