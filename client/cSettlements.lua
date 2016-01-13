@@ -3,103 +3,173 @@ class 'Settlements'
 function Settlements:__init()
 
 	self.triggers = {}
-	self.city_count = {}
+	self.settlements = {}
+	self.counts = {}
+	self.fire_local = true
+	self.fire_network = true
 
 	Events:Subscribe("ModuleLoad", self, self.ModuleLoad)
 	Events:Subscribe("ModuleUnload", self, self.ModuleUnload)
-	Events:Subscribe("ShapeTriggerEnter", self, self.TriggerEnter)
-	Events:Subscribe("ShapeTriggerExit", self, self.TriggerExit)
+	Events:Subscribe("ShapeTriggerEnter", self, self.Enter)
+	Events:Subscribe("ShapeTriggerExit", self, self.Exit)
 
 end
 
-function Settlements:TriggerEnter(args)
+function Settlements:Enter(args)
 
-	if args.entity.__type ~= "LocalPlayer" then return end
 	local trigger = self.triggers[args.trigger:GetId()]
 	if not trigger then return end
+	local settlement = trigger.settlement
+	local id = settlement.id
+	
+	self.counts[id] = self.counts[id] + 1
+	
+	if self.counts[id] == 1 then
+	
+		if args.entity.__type == "LocalPlayer" then
+		
+			if self.fire_local then
+				Events:Fire("LocalPlayerEnterSettlement", {
+					settlement = settlement
+				})			
+			end
+			
+			if self.fire_network then
+				Network:Send("Enter", {
+					id = id,
+					player = args.entity
+				})
+			end
 
-	local name = trigger[1]
-	if not trigger[3] then
-		Events:Fire("SettlementEnter", {name = name})
-	else
-		self.city_count[name] = self.city_count[name] + 1
-		if self.city_count[name] == 1 then
-			Events:Fire("SettlementEnter", {name = name})
+		elseif args.entity.__type == "Player" then
+		
+			if self.fire_local then
+				Events:Fire("PlayerEnterSettlement", {
+					settlement = settlement,
+					player = args.entity
+				})
+			end
+		
 		end
+		
 	end
 
 end
 
-function Settlements:TriggerExit(args)
+function Settlements:Exit(args)
 
-	if args.entity.__type ~= "LocalPlayer" then return end
 	local trigger = self.triggers[args.trigger:GetId()]
 	if not trigger then return end
+	local settlement = trigger.settlement
+	local id = settlement.id
+	
+	self.counts[id] = self.counts[id] - 1
+	
+	if self.counts[id] == 0 then
+	
+		if args.entity.__type == "LocalPlayer" then
+		
+			if self.fire_local then
+				Events:Fire("LocalPlayerExitSettlement", {
+					settlement = settlement
+				})			
+			end
+			
+			if self.fire_network then
+				Network:Send("Exit", {
+					id = id,
+					player = args.entity
+				})
+			end
 
-	local name = trigger[1]
-	if not trigger[3] then
-		Events:Fire("SettlementExit", {name = name})
-	else
-		self.city_count[name] = self.city_count[name] - 1
-		if self.city_count[name] == 0 then
-			Events:Fire("SettlementExit", {name = name})
+		elseif args.entity.__type == "Player" then
+		
+			if self.fire_local then
+				Events:Fire("PlayerExitSettlement", {
+					settlement = settlement,
+					player = args.entity
+				})
+			end
+		
 		end
+		
 	end
 
 end
 
 function Settlements:ModuleLoad()
 
-	for _, trigger in ipairs(triggers) do
+	for id, data in ipairs(settlements) do
 	
-		local entity = ShapeTrigger.Create({
-			position = Vector3(table.unpack(trigger[3])),
-			angle = Angle(table.unpack(trigger[2])),
-			components = {{size = Vector3(table.unpack(trigger[4])), type = trigger[5]}},
-			trigger_player = true,
-			trigger_player_in_vehicle = true
-		})
-		
-		self.triggers[entity:GetId()] = {trigger[1], entity, false}
-
-	end
-
-	triggers = nil
-	collectgarbage()
+		if #data[4] == 3 then
 	
-	for _, trigger in ipairs(city_triggers) do
-	
-		local origin = Vector3(table.unpack(trigger[3]))
-		local angle = Angle(table.unpack(trigger[2]))
-	
-		for i = 4, #trigger do
-
-			local component = trigger[i]
-		
-			local entity = ShapeTrigger.Create({
-				position = origin + angle * Vector3(table.unpack(component[2])),
-				angle = Angle(table.unpack(component[1])),
-				components = {{size = Vector3(table.unpack(component[3])), type = component[4]}},
+			local settlement = {
+				id = id,
+				name = data[1],
+				angle = Angle(table.unpack(data[2])),
+				position = Vector3(table.unpack(data[3])),
+				triggers = {}
+			}
+			
+			local trigger = ShapeTrigger.Create({
+				angle = settlement.angle,
+				position = settlement.position,
+				components = {{size = Vector3(table.unpack(data[4])), type = data[5]}},
 				trigger_player = true,
 				trigger_player_in_vehicle = true
 			})
 			
-			self.triggers[entity:GetId()] = {trigger[1], entity, true}
-			self.city_count[trigger[1]] = 0
-
+			self.settlements[id] = settlement
+			self.triggers[trigger:GetId()] = {settlement = settlement}
+			table.insert(settlement.triggers, trigger)
+			
+		else
+		
+			local settlement = {
+				id = id,
+				name = data[1],
+				angle = Angle(table.unpack(data[2])),
+				position = Vector3(table.unpack(data[3])),
+				triggers = {}
+			}
+		
+			for i = 4, #data do
+			
+				local component = data[i]
+			
+				local trigger = ShapeTrigger.Create({
+					angle = Angle(table.unpack(component[1])),
+					position = settlement.position + settlement.angle * Vector3(table.unpack(component[2])),
+					components = {{size = Vector3(table.unpack(component[3])), type = component[4]}},
+					trigger_player = true,
+					trigger_player_in_vehicle = true
+				})
+				
+				self.triggers[trigger:GetId()] = {settlement = settlement}
+				table.insert(settlement.triggers, trigger)
+			
+			end
+			
+			self.settlements[id] = settlement
+		
 		end
 	
-	end
+		self.counts[id] = 0
 
-	city_triggers = nil
+	end
+	
+	
+	settlements = nil
 	collectgarbage()
 	
 end
 
 function Settlements:ModuleUnload()
 
-	for _, trigger in pairs(self.triggers) do
-		trigger[2]:Remove()
+	for _, settlement in pairs(self.settlements) do
+		for _, trigger in ipairs(settlement.triggers) do
+			trigger:Remove()
+		end
 	end
 
 end
