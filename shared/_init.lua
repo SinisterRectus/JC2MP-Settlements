@@ -1,4 +1,4 @@
-settlements = {
+data = {
 	{
 		"Pelantar Gas Panau Barat",
 		{0,0,0,1},

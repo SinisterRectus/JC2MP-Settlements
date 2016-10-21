@@ -14,45 +14,34 @@ end
 
 function Settlements:ModuleLoad()
 
-	for id, data in ipairs(settlements) do
-		if #data[4] == 3 then
-			self.settlements[id] = {
-				id = id,
-				name = data[1],
-				angle = Angle(unpack(data[2])),
-				position = Vector3(unpack(data[3])),
-			}
-		else
-			self.settlements[id] = {
-				id = id,
-				name = data[1],
-				angle = Angle(unpack(data[2])),
-				position = Vector3(unpack(data[3])),
-			}
-		end
+	local settlements = {}
+	for k, v in ipairs(data) do
+		settlements[k] = {
+			id = k,
+			name = v[1],
+			angle = Angle(unpack(v[2])),
+			position = Vector3(unpack(v[3])),
+		}
 	end
 
-	settlements = nil
+	data = nil
 	collectgarbage()
+	self.settlements = settlements
 
 end
 
-function Settlements:Enter(args)
+function Settlements:Enter(args, sender)
 	Events:Fire("PlayerEnterSettlement", {
 		settlement = self.settlements[args.id],
-		player = args.player
+		player = sender
 	})
 end
 
-function Settlements:Exit(args)
+function Settlements:Exit(args, sender)
 	Events:Fire("PlayerExitSettlement", {
 		settlement = self.settlements[args.id],
-		player = args.player
+		player = sender
 	})
 end
-
-Events:Subscribe('PlayerEnterSettlement', function(args)
-	tprint(args)
-end)
 
 Settlements = Settlements()

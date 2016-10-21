@@ -4,8 +4,6 @@ class 'Settlements'
 
 function Settlements:__init()
 
-	self.triggers = {}
-	self.settlements = {}
 	self.counts = {}
 	self.fire_local = true
 	self.fire_network = true
@@ -22,10 +20,13 @@ function Settlements:Enter(args)
 	local settlement = self.triggers[args.trigger:GetId()]
 	if not settlement then return end
 	local id = settlement.id
+	local player = args.entity:GetSteamId().id
 
-	self.counts[id] = self.counts[id] + 1
+	local counts = self.counts
+	counts[player] = counts[player] or {}
+	counts[player][id] = counts[player][id] and counts[player][id] + 1 or 1
 
-	if self.counts[id] == 1 then
+	if counts[player][id] == 1 then
 		if args.entity.__type == "LocalPlayer" then
 			if self.fire_local then
 				Events:Fire("LocalPlayerEnterSettlement", {
@@ -33,10 +34,7 @@ function Settlements:Enter(args)
 				})
 			end
 			if self.fire_network then
-				Network:Send("Enter", {
-					id = id,
-					player = args.entity
-				})
+				Network:Send("Enter", {id = id})
 			end
 		elseif args.entity.__type == "Player" then
 			if self.fire_local then
@@ -55,10 +53,13 @@ function Settlements:Exit(args)
 	local settlement = self.triggers[args.trigger:GetId()]
 	if not settlement then return end
 	local id = settlement.id
+	local player = args.entity:GetSteamId().id
 
-	self.counts[id] = self.counts[id] - 1
+	local counts = self.counts
+	counts[player] = counts[player] or {}
+	counts[player][id] = counts[player][id] and counts[player][id] - 1 or 0
 
-	if self.counts[id] == 0 then
+	if counts[player][id] == 0 then
 		if args.entity.__type == "LocalPlayer" then
 			if self.fire_local then
 				Events:Fire("LocalPlayerExitSettlement", {
@@ -66,10 +67,7 @@ function Settlements:Exit(args)
 				})
 			end
 			if self.fire_network then
-				Network:Send("Exit", {
-					id = id,
-					player = args.entity
-				})
+				Network:Send("Exit", {id = id})
 			end
 		elseif args.entity.__type == "Player" then
 			if self.fire_local then
@@ -85,44 +83,46 @@ end
 
 function Settlements:ModuleLoad()
 
-	for id, data in ipairs(settlements) do
+	local triggers = {}
+	local settlements = {}
 
-		if #data[4] == 3 then
+	for k, v in ipairs(data) do
+
+		if #v[4] == 3 then
 
 			local settlement = {
-				id = id,
-				name = data[1],
-				angle = Angle(unpack(data[2])),
-				position = Vector3(unpack(data[3])),
+				id = k,
+				name = v[1],
+				angle = Angle(unpack(v[2])),
+				position = Vector3(unpack(v[3])),
 				triggers = {}
 			}
 
 			local trigger = ShapeTrigger.Create({
 				angle = settlement.angle,
 				position = settlement.position,
-				components = {{size = Vector3(unpack(data[4])), type = data[5]}},
+				components = {{size = Vector3(unpack(v[4])), type = v[5]}},
 				trigger_player = true,
 				trigger_player_in_vehicle = true
 			})
 
-			self.settlements[id] = settlement
-			self.triggers[trigger:GetId()] = settlement
+			settlements[k] = settlement
+			triggers[trigger:GetId()] = settlement
 			insert(settlement.triggers, trigger)
 
 		else
 
 			local settlement = {
-				id = id,
-				name = data[1],
-				angle = Angle(unpack(data[2])),
-				position = Vector3(unpack(data[3])),
+				id = k,
+				name = v[1],
+				angle = Angle(unpack(v[2])),
+				position = Vector3(unpack(v[3])),
 				triggers = {}
 			}
 
-			for i = 4, #data do
+			for i = 4, #v do
 
-				local component = data[i]
-
+				local component = v[i]
 				local trigger = ShapeTrigger.Create({
 					angle = Angle(unpack(component[1])),
 					position = settlement.position + settlement.angle * Vector3(unpack(component[2])),
@@ -131,21 +131,21 @@ function Settlements:ModuleLoad()
 					trigger_player_in_vehicle = true
 				})
 
-				self.triggers[trigger:GetId()] = settlement
+				triggers[trigger:GetId()] = settlement
 				insert(settlement.triggers, trigger)
 
 			end
 
-			self.settlements[id] = settlement
+			settlements[k] = settlement
 
 		end
 
-		self.counts[id] = 0
-
 	end
 
-	settlements = nil
+	data = nil
 	collectgarbage()
+	self.triggers = triggers
+	self.settlements = settlements
 
 end
 
